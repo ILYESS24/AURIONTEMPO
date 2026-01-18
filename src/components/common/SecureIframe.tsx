@@ -80,12 +80,17 @@ const IframeErrorState = ({
   </div>
 );
 
-// Validate if the origin is allowed
+// Validate if the origin is allowed (exact match to prevent subdomain attacks)
 function isOriginAllowed(src: string): boolean {
   try {
     const url = new URL(src);
     const origin = url.origin;
-    return ALLOWED_IFRAME_ORIGINS.some(allowed => origin.startsWith(allowed.replace(/\/$/, '')));
+    // Use exact origin matching to prevent subdomain attacks
+    // e.g., 'https://example.com' should NOT match 'https://example.com.evil.com'
+    return ALLOWED_IFRAME_ORIGINS.some(allowed => {
+      const allowedOrigin = new URL(allowed).origin;
+      return origin === allowedOrigin;
+    });
   } catch {
     return false;
   }
@@ -138,11 +143,20 @@ export const SecureIframe: React.FC<SecureIframeProps> = ({
     setKey(prev => prev + 1);
   }, []);
 
-  // Listen for postMessage from iframe (with origin validation)
+  // Listen for postMessage from iframe (with exact origin validation)
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
-      // Validate origin
-      if (!ALLOWED_IFRAME_ORIGINS.some(origin => event.origin.startsWith(origin.replace(/\/$/, '')))) {
+      // Validate origin with exact matching to prevent subdomain attacks
+      const isOriginValid = ALLOWED_IFRAME_ORIGINS.some(allowed => {
+        try {
+          const allowedOrigin = new URL(allowed).origin;
+          return event.origin === allowedOrigin;
+        } catch {
+          return false;
+        }
+      });
+      
+      if (!isOriginValid) {
         console.warn('[SecureIframe] Message from unauthorized origin:', event.origin);
         return;
       }

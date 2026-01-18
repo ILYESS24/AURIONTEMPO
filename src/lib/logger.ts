@@ -32,7 +32,23 @@ function getMinLogLevel(): number {
 function sanitizeData(data?: Record<string, unknown>): Record<string, unknown> | undefined {
   if (!data) return undefined;
   
-  const sensitiveKeys = ['password', 'token', 'secret', 'key', 'auth', 'credential', 'apiKey'];
+  // Comprehensive list of sensitive key patterns
+  const sensitiveKeys = [
+    'password', 'passwd', 'pwd',
+    'token', 'accesstoken', 'refreshtoken', 'authtoken', 'bearertoken',
+    'secret', 'secretkey',
+    'key', 'apikey', 'accesskey', 'privatekey', 'publickey',
+    'auth', 'authorization',
+    'credential', 'credentials',
+    'session', 'sessionid', 'sessionsecret',
+    'cookie',
+    'jwt',
+    'bearer',
+    'hash', 'salt',
+    'signature',
+    'certificate', 'cert',
+    'private',
+  ];
   const sanitized: Record<string, unknown> = {};
   
   for (const [key, value] of Object.entries(data)) {

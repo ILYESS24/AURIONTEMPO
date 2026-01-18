@@ -108,7 +108,7 @@ function App() {
   }, []);
 
   // In production without auth, show configuration error
-  if (!CLERK_PUBLISHABLE_KEY && import.meta.env.PROD) {
+  if (!CLERK_PUBLISHABLE_KEY && getEnvConfig().IS_PRODUCTION) {
     securityLogger.error('Authentication not configured in production');
     return <ConfigurationError />;
   }

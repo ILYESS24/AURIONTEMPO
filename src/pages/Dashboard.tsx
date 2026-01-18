@@ -572,7 +572,7 @@ const Dashboard = () => {
               </div>
               <div className="space-y-4">
                 {recentActivity.map((activity, index) => (
-                  <ActivityItem key={`${activity.user}-${activity.time}`} activity={activity} index={index} />
+                  <ActivityItem key={`activity-${index}`} activity={activity} index={index} />
                 ))}
               </div>
             </motion.section>
