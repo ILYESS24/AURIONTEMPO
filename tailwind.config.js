@@ -16,6 +16,10 @@ module.exports = {
   			'2xl': '1400px'
   		}
   	},
+  	fontFamily: {
+  		'display': ['Syne', 'sans-serif'],
+  		'body': ['Manrope', 'sans-serif'],
+  	},
   	extend: {
   		colors: {
   			border: 'hsl(var(--border))',

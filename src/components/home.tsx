@@ -1,8 +1,7 @@
+import FabricaLanding from "./fabrica";
+
 function Home() {
-  return (
-    <div className="w-screen h-screen">
-    </div>
-  )
+  return <FabricaLanding />;
 }
 
-export default Home
+export default Home;
