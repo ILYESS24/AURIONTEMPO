@@ -1,7 +1,9 @@
-import { useState } from "react";
+import { useState, useCallback, useMemo } from "react";
 import { motion } from "framer-motion";
-import { Link, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { useAuth, useUser, SignOutButton, UserButton } from "@clerk/clerk-react";
+import { isAuthConfigured } from "@/lib/env";
+import { authLogger } from "@/lib/logger";
 import {
   LayoutDashboard,
   FolderOpen,
@@ -26,14 +28,47 @@ import {
   Palette,
   FileText,
   Bot,
-  Eye,
-  MousePointer,
-  Timer,
-  Star,
 } from "lucide-react";
 
+// Types
+interface SidebarItem {
+  icon: React.ElementType;
+  label: string;
+  href: string;
+  active?: boolean;
+}
+
+interface StatData {
+  label: string;
+  value: string;
+  change: string;
+  trend: 'up' | 'down';
+  icon: React.ElementType;
+}
+
+interface Project {
+  name: string;
+  status: 'In Progress' | 'Review' | 'Completed';
+  progress: number;
+  team: number;
+  icon: React.ElementType;
+}
+
+interface Activity {
+  user: string;
+  action: string;
+  target: string;
+  time: string;
+}
+
+interface QuickAction {
+  icon: React.ElementType;
+  label: string;
+  color: string;
+}
+
 // Sidebar Navigation Items
-const sidebarItems = [
+const sidebarItems: SidebarItem[] = [
   { icon: LayoutDashboard, label: "Dashboard", href: "/dashboard", active: true },
   { icon: FolderOpen, label: "Projects", href: "/dashboard/projects" },
   { icon: BarChart3, label: "Analytics", href: "/dashboard/analytics" },
@@ -42,7 +77,7 @@ const sidebarItems = [
 ];
 
 // Stats Data
-const statsData = [
+const statsData: StatData[] = [
   {
     label: "Total Projects",
     value: "24",
@@ -74,7 +109,7 @@ const statsData = [
 ];
 
 // Recent Projects
-const recentProjects = [
+const recentProjects: Project[] = [
   {
     name: "E-commerce Platform",
     status: "In Progress",
@@ -106,7 +141,7 @@ const recentProjects = [
 ];
 
 // Recent Activity
-const recentActivity = [
+const recentActivity: Activity[] = [
   {
     user: "Marie L.",
     action: "completed task",
@@ -134,40 +169,168 @@ const recentActivity = [
 ];
 
 // Quick Actions
-const quickActions = [
+const quickActions: QuickAction[] = [
   { icon: Plus, label: "New Project", color: "bg-white text-black" },
   { icon: Users, label: "Invite Team", color: "bg-white/10 text-white" },
   { icon: Zap, label: "Quick Task", color: "bg-white/10 text-white" },
 ];
 
+// Stat Card Component
+const StatCard: React.FC<{ stat: StatData; index: number }> = ({ stat, index }) => (
+  <motion.div
+    initial={{ opacity: 0, y: 20 }}
+    animate={{ opacity: 1, y: 0 }}
+    transition={{ duration: 0.5, delay: 0.2 + index * 0.1 }}
+    className="bg-white/5 border border-white/10 rounded-2xl p-6 hover:bg-white/[0.07] transition-colors"
+  >
+    <div className="flex items-start justify-between mb-4">
+      <div className="p-2.5 bg-white/10 rounded-xl">
+        <stat.icon className="w-5 h-5" />
+      </div>
+      <div
+        className={`flex items-center gap-1 text-sm ${
+          stat.trend === "up" ? "text-green-400" : "text-red-400"
+        }`}
+      >
+        {stat.trend === "up" ? (
+          <TrendingUp className="w-4 h-4" />
+        ) : (
+          <TrendingDown className="w-4 h-4" />
+        )}
+        {stat.change}
+      </div>
+    </div>
+    <p className="text-2xl md:text-3xl font-bold mb-1">{stat.value}</p>
+    <p className="text-white/50 text-sm">{stat.label}</p>
+  </motion.div>
+);
+
+// Project Card Component
+const ProjectCard: React.FC<{ project: Project; index: number }> = ({ project, index }) => (
+  <motion.div
+    initial={{ opacity: 0, x: -20 }}
+    animate={{ opacity: 1, x: 0 }}
+    transition={{ duration: 0.3, delay: 0.5 + index * 0.1 }}
+    className="flex items-center gap-4 p-4 bg-white/5 rounded-xl hover:bg-white/[0.07] transition-colors cursor-pointer group"
+  >
+    <div className="p-3 bg-white/10 rounded-xl">
+      <project.icon className="w-5 h-5" />
+    </div>
+    <div className="flex-1 min-w-0">
+      <div className="flex items-center justify-between mb-2">
+        <h3 className="font-medium truncate">{project.name}</h3>
+        <span
+          className={`text-xs px-2.5 py-1 rounded-full ${
+            project.status === "Completed"
+              ? "bg-green-500/20 text-green-400"
+              : project.status === "Review"
+              ? "bg-yellow-500/20 text-yellow-400"
+              : "bg-blue-500/20 text-blue-400"
+          }`}
+        >
+          {project.status}
+        </span>
+      </div>
+      <div className="flex items-center gap-4">
+        <div className="flex-1">
+          <div className="h-1.5 bg-white/10 rounded-full overflow-hidden">
+            <div
+              className="h-full bg-white rounded-full transition-all"
+              style={{ width: `${project.progress}%` }}
+            />
+          </div>
+        </div>
+        <span className="text-xs text-white/50">{project.progress}%</span>
+        <div className="flex items-center gap-1 text-xs text-white/50">
+          <Users className="w-3.5 h-3.5" />
+          {project.team}
+        </div>
+      </div>
+    </div>
+    <ArrowUpRight className="w-4 h-4 text-white/30 group-hover:text-white transition-colors" />
+  </motion.div>
+);
+
+// Activity Item Component
+const ActivityItem: React.FC<{ activity: Activity; index: number }> = ({ activity, index }) => (
+  <motion.div
+    initial={{ opacity: 0, x: 20 }}
+    animate={{ opacity: 1, x: 0 }}
+    transition={{ duration: 0.3, delay: 0.6 + index * 0.1 }}
+    className="flex items-start gap-3"
+  >
+    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center text-xs font-medium flex-shrink-0">
+      {activity.user.charAt(0)}
+    </div>
+    <div className="flex-1 min-w-0">
+      <p className="text-sm">
+        <span className="font-medium">{activity.user}</span>{" "}
+        <span className="text-white/60">{activity.action}</span>{" "}
+        <span className="font-medium">{activity.target}</span>
+      </p>
+      <p className="text-xs text-white/40 mt-0.5 flex items-center gap-1">
+        <Clock className="w-3 h-3" />
+        {activity.time}
+      </p>
+    </div>
+  </motion.div>
+);
+
 const Dashboard = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const navigate = useNavigate();
 
-  // Use try-catch to handle when outside ClerkProvider
-  let isSignedIn = true;
-  let isLoaded = true;
-  let user: { firstName?: string | null; username?: string | null; primaryEmailAddress?: { emailAddress: string } | null } | null = null;
-
-  try {
-    const auth = useAuth();
-    const userResult = useUser();
-    isSignedIn = auth.isSignedIn ?? false;
-    isLoaded = auth.isLoaded;
-    user = userResult.user;
-  } catch {
-    // Not inside ClerkProvider, use defaults for demo
-  }
-
-  // Redirect if not signed in (only if Clerk is configured)
-  if (isLoaded && !isSignedIn && import.meta.env.VITE_CLERK_PUBLISHABLE_KEY) {
-    navigate("/sign-in");
+  // Get auth state with proper error handling
+  const authState = useMemo(() => {
+    if (!isAuthConfigured()) {
+      authLogger.debug('Auth not configured, using demo mode');
+      return {
+        isSignedIn: true,
+        isLoaded: true,
+        user: null,
+      };
+    }
     return null;
-  }
+  }, []);
 
-  const userName = user?.firstName || user?.username || "User";
-  const userEmail = user?.primaryEmailAddress?.emailAddress || "user@aurion.studio";
+  // Use Clerk hooks only when auth is configured
+  const clerkAuth = isAuthConfigured() ? useAuth() : null;
+  const clerkUser = isAuthConfigured() ? useUser() : null;
+
+  const isSignedIn = authState?.isSignedIn ?? clerkAuth?.isSignedIn ?? false;
+  const isLoaded = authState?.isLoaded ?? clerkAuth?.isLoaded ?? true;
+  const user = clerkUser?.user ?? null;
+
+  // Memoized user info
+  const { userName, userEmail } = useMemo(() => ({
+    userName: user?.firstName || user?.username || "User",
+    userEmail: user?.primaryEmailAddress?.emailAddress || "user@aurion.studio",
+  }), [user]);
+
+  // Handlers
+  const handleToggleSidebar = useCallback(() => {
+    setSidebarOpen(prev => !prev);
+  }, []);
+
+  const handleCloseSidebar = useCallback(() => {
+    setSidebarOpen(false);
+  }, []);
+
+  const handleSearchChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setSearchQuery(e.target.value);
+  }, []);
+
+  // Show loading state
+  if (!isLoaded) {
+    return (
+      <div className="min-h-screen bg-black flex items-center justify-center">
+        <div className="text-white font-body text-center">
+          <div className="w-10 h-10 border-2 border-white/20 border-t-white rounded-full animate-spin mx-auto mb-4" />
+          <p className="text-white/60 text-sm">Loading dashboard...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-black text-white font-body">
@@ -178,7 +341,7 @@ const Dashboard = () => {
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           className="fixed inset-0 bg-black/80 z-40 lg:hidden"
-          onClick={() => setSidebarOpen(false)}
+          onClick={handleCloseSidebar}
         />
       )}
 
@@ -195,15 +358,16 @@ const Dashboard = () => {
               aurion<span className="text-xs align-super">®</span>
             </Link>
             <button
-              onClick={() => setSidebarOpen(false)}
+              onClick={handleCloseSidebar}
               className="lg:hidden p-2 hover:bg-white/10 rounded-lg transition-colors"
+              aria-label="Close sidebar"
             >
               <X className="w-5 h-5" />
             </button>
           </div>
 
           {/* Navigation */}
-          <nav className="flex-1 p-4">
+          <nav className="flex-1 p-4" aria-label="Dashboard navigation">
             <ul className="space-y-2">
               {sidebarItems.map((item) => (
                 <li key={item.label}>
@@ -214,8 +378,9 @@ const Dashboard = () => {
                         ? "bg-white text-black font-medium"
                         : "text-white/60 hover:text-white hover:bg-white/5"
                     }`}
+                    aria-current={item.active ? "page" : undefined}
                   >
-                    <item.icon className="w-5 h-5" />
+                    <item.icon className="w-5 h-5" aria-hidden="true" />
                     {item.label}
                   </Link>
                 </li>
@@ -226,7 +391,7 @@ const Dashboard = () => {
           {/* User Section */}
           <div className="p-4 border-t border-white/10">
             <div className="flex items-center gap-3 p-3 rounded-xl hover:bg-white/5 transition-colors">
-              {import.meta.env.VITE_CLERK_PUBLISHABLE_KEY ? (
+              {isAuthConfigured() ? (
                 <UserButton 
                   appearance={{
                     elements: {
@@ -243,14 +408,21 @@ const Dashboard = () => {
                 <p className="text-sm font-medium truncate">{userName}</p>
                 <p className="text-xs text-white/40 truncate">{userEmail}</p>
               </div>
-              {import.meta.env.VITE_CLERK_PUBLISHABLE_KEY ? (
+              {isAuthConfigured() ? (
                 <SignOutButton>
-                  <button className="p-1.5 hover:bg-white/10 rounded-lg transition-colors">
+                  <button 
+                    className="p-1.5 hover:bg-white/10 rounded-lg transition-colors"
+                    aria-label="Sign out"
+                  >
                     <LogOut className="w-4 h-4 text-white/40 hover:text-white cursor-pointer" />
                   </button>
                 </SignOutButton>
               ) : (
-                <Link to="/" className="p-1.5 hover:bg-white/10 rounded-lg transition-colors">
+                <Link 
+                  to="/" 
+                  className="p-1.5 hover:bg-white/10 rounded-lg transition-colors"
+                  aria-label="Return to home"
+                >
                   <LogOut className="w-4 h-4 text-white/40 hover:text-white cursor-pointer" />
                 </Link>
               )}
@@ -266,8 +438,9 @@ const Dashboard = () => {
           <div className="flex items-center justify-between px-4 md:px-8 py-4">
             {/* Mobile Menu Button */}
             <button
-              onClick={() => setSidebarOpen(true)}
+              onClick={handleToggleSidebar}
               className="lg:hidden p-2 hover:bg-white/10 rounded-lg transition-colors"
+              aria-label="Open sidebar"
             >
               <Menu className="w-6 h-6" />
             </button>
@@ -275,13 +448,14 @@ const Dashboard = () => {
             {/* Search */}
             <div className="hidden md:flex items-center flex-1 max-w-md mx-4">
               <div className="relative w-full">
-                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/40" />
+                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/40" aria-hidden="true" />
                 <input
-                  type="text"
+                  type="search"
                   placeholder="Search projects, tasks..."
                   value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onChange={handleSearchChange}
                   className="w-full bg-white/5 border border-white/10 rounded-xl py-2.5 pl-11 pr-4 text-sm placeholder:text-white/40 focus:outline-none focus:border-white/30 transition-colors"
+                  aria-label="Search"
                 />
               </div>
             </div>
@@ -292,16 +466,17 @@ const Dashboard = () => {
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
                 className="relative p-2.5 hover:bg-white/10 rounded-xl transition-colors"
+                aria-label="Notifications"
               >
                 <Bell className="w-5 h-5" />
-                <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full" />
+                <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full" aria-label="New notifications" />
               </motion.button>
               <motion.button
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
                 className="hidden sm:flex items-center gap-2 bg-white text-black px-4 py-2.5 rounded-xl font-medium text-sm"
               >
-                <Plus className="w-4 h-4" />
+                <Plus className="w-4 h-4" aria-hidden="true" />
                 New Project
               </motion.button>
             </div>
@@ -332,14 +507,14 @@ const Dashboard = () => {
             transition={{ duration: 0.5, delay: 0.1 }}
             className="flex flex-wrap gap-3 mb-8"
           >
-            {quickActions.map((action, index) => (
+            {quickActions.map((action) => (
               <motion.button
                 key={action.label}
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
                 className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-medium text-sm ${action.color} transition-colors`}
               >
-                <action.icon className="w-4 h-4" />
+                <action.icon className="w-4 h-4" aria-hidden="true" />
                 {action.label}
               </motion.button>
             ))}
@@ -353,159 +528,71 @@ const Dashboard = () => {
             className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8"
           >
             {statsData.map((stat, index) => (
-              <motion.div
-                key={stat.label}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.5, delay: 0.2 + index * 0.1 }}
-                className="bg-white/5 border border-white/10 rounded-2xl p-6 hover:bg-white/[0.07] transition-colors"
-              >
-                <div className="flex items-start justify-between mb-4">
-                  <div className="p-2.5 bg-white/10 rounded-xl">
-                    <stat.icon className="w-5 h-5" />
-                  </div>
-                  <div
-                    className={`flex items-center gap-1 text-sm ${
-                      stat.trend === "up" ? "text-green-400" : "text-red-400"
-                    }`}
-                  >
-                    {stat.trend === "up" ? (
-                      <TrendingUp className="w-4 h-4" />
-                    ) : (
-                      <TrendingDown className="w-4 h-4" />
-                    )}
-                    {stat.change}
-                  </div>
-                </div>
-                <p className="text-2xl md:text-3xl font-bold mb-1">{stat.value}</p>
-                <p className="text-white/50 text-sm">{stat.label}</p>
-              </motion.div>
+              <StatCard key={stat.label} stat={stat} index={index} />
             ))}
           </motion.div>
 
           {/* Main Grid */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Recent Projects */}
-            <motion.div
+            <motion.section
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5, delay: 0.4 }}
               className="lg:col-span-2 bg-white/5 border border-white/10 rounded-2xl p-6"
+              aria-labelledby="recent-projects-heading"
             >
               <div className="flex items-center justify-between mb-6">
-                <h2 className="text-xl font-semibold">Recent Projects</h2>
+                <h2 id="recent-projects-heading" className="text-xl font-semibold">Recent Projects</h2>
                 <button className="flex items-center gap-1 text-sm text-white/60 hover:text-white transition-colors">
                   View all
-                  <ChevronRight className="w-4 h-4" />
+                  <ChevronRight className="w-4 h-4" aria-hidden="true" />
                 </button>
               </div>
               <div className="space-y-4">
                 {recentProjects.map((project, index) => (
-                  <motion.div
-                    key={project.name}
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ duration: 0.3, delay: 0.5 + index * 0.1 }}
-                    className="flex items-center gap-4 p-4 bg-white/5 rounded-xl hover:bg-white/[0.07] transition-colors cursor-pointer group"
-                  >
-                    <div className="p-3 bg-white/10 rounded-xl">
-                      <project.icon className="w-5 h-5" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between mb-2">
-                        <h3 className="font-medium truncate">{project.name}</h3>
-                        <span
-                          className={`text-xs px-2.5 py-1 rounded-full ${
-                            project.status === "Completed"
-                              ? "bg-green-500/20 text-green-400"
-                              : project.status === "Review"
-                              ? "bg-yellow-500/20 text-yellow-400"
-                              : "bg-blue-500/20 text-blue-400"
-                          }`}
-                        >
-                          {project.status}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-4">
-                        <div className="flex-1">
-                          <div className="h-1.5 bg-white/10 rounded-full overflow-hidden">
-                            <div
-                              className="h-full bg-white rounded-full transition-all"
-                              style={{ width: `${project.progress}%` }}
-                            />
-                          </div>
-                        </div>
-                        <span className="text-xs text-white/50">
-                          {project.progress}%
-                        </span>
-                        <div className="flex items-center gap-1 text-xs text-white/50">
-                          <Users className="w-3.5 h-3.5" />
-                          {project.team}
-                        </div>
-                      </div>
-                    </div>
-                    <ArrowUpRight className="w-4 h-4 text-white/30 group-hover:text-white transition-colors" />
-                  </motion.div>
+                  <ProjectCard key={project.name} project={project} index={index} />
                 ))}
               </div>
-            </motion.div>
+            </motion.section>
 
             {/* Recent Activity */}
-            <motion.div
+            <motion.section
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5, delay: 0.5 }}
               className="bg-white/5 border border-white/10 rounded-2xl p-6"
+              aria-labelledby="activity-heading"
             >
               <div className="flex items-center justify-between mb-6">
-                <h2 className="text-xl font-semibold">Activity</h2>
+                <h2 id="activity-heading" className="text-xl font-semibold">Activity</h2>
                 <button className="text-sm text-white/60 hover:text-white transition-colors">
                   See all
                 </button>
               </div>
               <div className="space-y-4">
                 {recentActivity.map((activity, index) => (
-                  <motion.div
-                    key={index}
-                    initial={{ opacity: 0, x: 20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ duration: 0.3, delay: 0.6 + index * 0.1 }}
-                    className="flex items-start gap-3"
-                  >
-                    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center text-xs font-medium flex-shrink-0">
-                      {activity.user.charAt(0)}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm">
-                        <span className="font-medium">{activity.user}</span>{" "}
-                        <span className="text-white/60">{activity.action}</span>{" "}
-                        <span className="font-medium">{activity.target}</span>
-                      </p>
-                      <p className="text-xs text-white/40 mt-0.5 flex items-center gap-1">
-                        <Clock className="w-3 h-3" />
-                        {activity.time}
-                      </p>
-                    </div>
-                  </motion.div>
+                  <ActivityItem key={`${activity.user}-${activity.time}`} activity={activity} index={index} />
                 ))}
               </div>
-            </motion.div>
+            </motion.section>
           </div>
 
           {/* Upcoming Tasks */}
-          <motion.div
+          <motion.section
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.7 }}
             className="mt-6 bg-gradient-to-r from-purple-500/20 to-blue-500/20 border border-white/10 rounded-2xl p-6"
+            aria-labelledby="tasks-heading"
           >
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
               <div className="flex items-start gap-4">
                 <div className="p-3 bg-white/10 rounded-xl">
-                  <AlertCircle className="w-6 h-6" />
+                  <AlertCircle className="w-6 h-6" aria-hidden="true" />
                 </div>
                 <div>
-                  <h3 className="text-lg font-semibold mb-1">
+                  <h3 id="tasks-heading" className="text-lg font-semibold mb-1">
                     5 tasks due today
                   </h3>
                   <p className="text-white/60 text-sm">
@@ -522,7 +609,7 @@ const Dashboard = () => {
                 View Tasks
               </motion.button>
             </div>
-          </motion.div>
+          </motion.section>
         </main>
       </div>
     </div>
