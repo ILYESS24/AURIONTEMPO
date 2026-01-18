@@ -13,6 +13,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { ALLOWED_IFRAME_ORIGINS } from '@/lib/env';
+import { securityLogger } from '@/lib/logger';
 import { AlertCircle, RefreshCw, Loader2 } from 'lucide-react';
 
 // Sandbox permissions - minimal by default
@@ -170,13 +171,13 @@ export const SecureIframe: React.FC<SecureIframeProps> = ({
       });
       
       if (!isOriginValid) {
-        console.warn('[SecureIframe] Message from unauthorized origin:', event.origin);
+        securityLogger.warn('Message from unauthorized origin', { origin: event.origin });
         return;
       }
 
       // Handle specific messages if needed
       // This is where you'd handle communication from the iframe
-      console.log('[SecureIframe] Message received:', event.data);
+      securityLogger.debug('Message received from iframe', { data: event.data });
     };
 
     window.addEventListener('message', handleMessage);

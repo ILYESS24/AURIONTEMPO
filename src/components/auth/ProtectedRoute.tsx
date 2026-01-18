@@ -9,6 +9,7 @@
 import { useAuth } from "@clerk/clerk-react";
 import { Navigate, Outlet, useLocation } from "react-router-dom";
 import { isAuthConfigured } from "@/lib/env";
+import { authLogger } from "@/lib/logger";
 
 // Loading component shown while auth state is being determined
 const AuthLoading = () => (
@@ -58,7 +59,7 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   if (!isAuthConfigured()) {
     // In development without auth, allow access with warning
     if (import.meta.env.DEV) {
-      console.warn('[ProtectedRoute] Auth not configured - running in demo mode');
+      authLogger.warn('Auth not configured - running in demo mode');
       return children ? <>{children}</> : <Outlet />;
     }
     // In production without auth, deny access
