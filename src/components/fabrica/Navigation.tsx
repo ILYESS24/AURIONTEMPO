@@ -1,6 +1,7 @@
 import { motion } from "framer-motion";
 import { Link } from "react-router-dom";
 import { useAuth, SignInButton, UserButton } from "@clerk/clerk-react";
+import { isAuthConfigured } from "@/lib/env";
 
 const navItems = [
   { name: "Home", href: "/" },
@@ -10,17 +11,13 @@ const navItems = [
 ];
 
 const Navigation = () => {
-  // Use try-catch to handle when outside ClerkProvider
-  let isSignedIn = false;
-  let isLoaded = true;
-
-  try {
-    const auth = useAuth();
-    isSignedIn = auth.isSignedIn ?? false;
-    isLoaded = auth.isLoaded;
-  } catch {
-    // Not inside ClerkProvider, use defaults
-  }
+  // Get auth state with proper handling
+  const authConfigured = isAuthConfigured();
+  
+  // Only use Clerk hooks when auth is configured
+  const clerkAuth = authConfigured ? useAuth() : null;
+  const isSignedIn = clerkAuth?.isSignedIn ?? false;
+  const isLoaded = clerkAuth?.isLoaded ?? true;
 
   return (
     <motion.nav
@@ -28,9 +25,15 @@ const Navigation = () => {
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5, delay: 0 }}
       className="fixed top-0 left-0 right-0 z-50 h-16 md:h-20 flex items-center justify-between px-6 md:px-12 lg:px-16"
+      role="navigation"
+      aria-label="Main navigation"
     >
       {/* Logo */}
-      <Link to="/" className="text-white text-base md:text-lg font-medium tracking-tight font-body">
+      <Link 
+        to="/" 
+        className="text-white text-base md:text-lg font-medium tracking-tight font-body"
+        aria-label="aurion® - Home"
+      >
         aurion<span className="text-[10px] md:text-xs align-super">®</span>
       </Link>
 
@@ -55,7 +58,7 @@ const Navigation = () => {
 
       {/* Auth Section */}
       <div className="flex items-center gap-3">
-        {import.meta.env.VITE_CLERK_PUBLISHABLE_KEY ? (
+        {authConfigured ? (
           isLoaded && isSignedIn ? (
             <>
               <Link to="/dashboard">

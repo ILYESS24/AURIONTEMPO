@@ -4,12 +4,65 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>fabrica® Studio</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=Manrope:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <title>aurion® Studio</title>
+    
+    <!-- Security Headers -->
+    <meta http-equiv="X-Content-Type-Options" content="nosniff" />
+    <meta http-equiv="X-Frame-Options" content="SAMEORIGIN" />
+    <meta http-equiv="Referrer-Policy" content="strict-origin-when-cross-origin" />
+    <meta http-equiv="Permissions-Policy" content="camera=(), microphone=(), geolocation=()" />
+    
+    <!-- 
+      Content Security Policy
+      Note: 'unsafe-inline' and 'unsafe-eval' are required for:
+      - Vite development server hot module replacement
+      - Clerk authentication library runtime
+      - Framer Motion animations
+      - Three.js WebGL shaders
+      In a production build, consider using nonces for stricter CSP.
+    -->
+    <meta http-equiv="Content-Security-Policy" content="
+      default-src 'self';
+      script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.clerk.io https://*.clerk.dev https://challenges.cloudflare.com;
+      style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
+      font-src 'self' https://fonts.gstatic.com;
+      img-src 'self' data: https: blob:;
+      frame-src https://eed972db.aurion-ide.pages.dev https://production.ai-assistant-xlv.pages.dev https://flo-9xh2.onrender.com https://canvchat-1-y73q.onrender.com https://tersa-main-b5f0ey7pq-launchmateais-projects.vercel.app https://4e2af144.aieditor.pages.dev https://www.google.com https://*.clerk.io https://*.clerk.dev https://challenges.cloudflare.com;
+      connect-src 'self' https://*.clerk.io https://*.clerk.dev https://*.supabase.co wss://*.supabase.co https://api.picaos.com;
+      worker-src 'self' blob:;
+      object-src 'none';
+      base-uri 'self';
+      form-action 'self';
+    " />
+    
+    <!-- Preconnect for performance -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=Manrope:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+    
+    <!-- SEO Meta Tags -->
+    <meta name="description" content="aurion® Studio - Modern creative tools powered by AI for developers and designers" />
+    <meta name="keywords" content="aurion, studio, ai, development, design, code editor, app builder" />
+    <meta name="author" content="Aurion Studio" />
+    
+    <!-- Open Graph / Social Media -->
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="aurion® Studio" />
+    <meta property="og:description" content="Modern creative tools powered by AI for developers and designers" />
+    <meta property="og:site_name" content="aurion® Studio" />
+    
+    <!-- Theme Color -->
+    <meta name="theme-color" content="#000000" />
   </head>
   <body>
+    <noscript>
+      <div style="padding: 20px; text-align: center; background: #000; color: #fff; min-height: 100vh; display: flex; align-items: center; justify-content: center;">
+        <div>
+          <h1>JavaScript Required</h1>
+          <p>aurion® Studio requires JavaScript to run. Please enable JavaScript in your browser settings.</p>
+        </div>
+      </div>
+    </noscript>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
