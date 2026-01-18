@@ -590,7 +590,7 @@ const Dashboard = () => {
               <div className="flex items-center gap-3 bg-white/5 border border-white/10 rounded-xl px-4 py-2">
                 <Activity className="w-4 h-4 text-green-400" />
                 <span className="text-sm text-white/60">
-                  {currentTime.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+                  {currentTime.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}
                 </span>
                 <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
                 <span className="text-xs text-green-400">Live</span>

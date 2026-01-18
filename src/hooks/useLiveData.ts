@@ -50,7 +50,7 @@ const generateRandomActivity = (): LiveActivity => {
   const targets = ['Homepage Design', 'API Integration', 'Brand Assets', 'Mobile App v2', 'Dashboard UI', 'User Authentication'];
   
   return {
-    id: `activity-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+    id: `activity-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`,
     user: users[Math.floor(Math.random() * users.length)],
     action: actions[Math.floor(Math.random() * actions.length)],
     target: targets[Math.floor(Math.random() * targets.length)],
@@ -151,11 +151,14 @@ export function useToolStatus() {
   );
 
   // Check tool availability
+  // NOTE: SIMULATION MODE - In production, replace this with a backend API endpoint
+  // that can properly check if external services are reachable.
+  // Example production implementation:
+  //   const response = await fetch('/api/health-check', { body: JSON.stringify({ url: tool.url }) });
+  //   return response.json();
   const checkToolStatus = useCallback(async (tool: ToolStatus) => {
     try {
-      // We can't directly fetch cross-origin URLs, but we can assume they're online
-      // In a real app, you'd have a backend endpoint to check this
-      // For now, we'll simulate with a timeout
+      // Simulated delay (production: actual health check)
       await new Promise(resolve => setTimeout(resolve, Math.random() * 1000 + 500));
       
       return {
