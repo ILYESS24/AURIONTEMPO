@@ -9,6 +9,8 @@ import {
   useLiveActivity, 
   useToolStatus, 
   useCurrentTime,
+  useProjects,
+  useTasksDueToday,
   formatRelativeTime 
 } from "@/hooks/useLiveData";
 import {
@@ -30,7 +32,6 @@ import {
   Menu,
   X,
   LogOut,
-  Zap,
   Code,
   Palette,
   FileText,
@@ -43,6 +44,7 @@ import {
   MessageSquare,
   PenTool,
   Layers,
+  Loader2,
 } from "lucide-react";
 
 // Tool icon mapping
@@ -73,14 +75,6 @@ interface SidebarItem {
   active?: boolean;
 }
 
-interface Project {
-  name: string;
-  status: 'In Progress' | 'Review' | 'Completed';
-  progress: number;
-  team: number;
-  icon: React.ElementType;
-}
-
 interface QuickAction {
   icon: React.ElementType;
   label: string;
@@ -97,37 +91,13 @@ const sidebarItems: SidebarItem[] = [
   { icon: Settings, label: "Settings", href: "/dashboard/settings" },
 ];
 
-// Recent Projects (static for now, could be from API)
-const recentProjects: Project[] = [
-  {
-    name: "E-commerce Platform",
-    status: "In Progress",
-    progress: 75,
-    team: 4,
-    icon: Code,
-  },
-  {
-    name: "Brand Identity",
-    status: "Review",
-    progress: 90,
-    team: 2,
-    icon: Palette,
-  },
-  {
-    name: "Documentation",
-    status: "Completed",
-    progress: 100,
-    team: 3,
-    icon: FileText,
-  },
-  {
-    name: "AI Integration",
-    status: "In Progress",
-    progress: 45,
-    team: 5,
-    icon: Bot,
-  },
-];
+// Project status display mapping
+const STATUS_DISPLAY: Record<string, { label: string; color: string }> = {
+  'draft': { label: 'Draft', color: 'bg-gray-500/20 text-gray-400' },
+  'in_progress': { label: 'In Progress', color: 'bg-blue-500/20 text-blue-400' },
+  'review': { label: 'Review', color: 'bg-yellow-500/20 text-yellow-400' },
+  'completed': { label: 'Completed', color: 'bg-green-500/20 text-green-400' },
+};
 
 // Quick Actions with routes
 const quickActions: QuickAction[] = [
@@ -192,55 +162,51 @@ const LiveStatCard: React.FC<LiveStatCardProps> = ({ label, value, change, trend
   </motion.div>
 );
 
-// Project Card Component
-const ProjectCard: React.FC<{ project: Project; index: number }> = ({ project, index }) => (
-  <motion.div
-    initial={{ opacity: 0, x: -20 }}
-    animate={{ opacity: 1, x: 0 }}
-    transition={{ duration: 0.3, delay: 0.5 + index * 0.1 }}
-    className="flex items-center gap-4 p-4 bg-white/5 rounded-xl hover:bg-white/[0.07] transition-colors cursor-pointer group"
-  >
-    <div className="p-3 bg-white/10 rounded-xl">
-      <project.icon className="w-5 h-5" />
-    </div>
-    <div className="flex-1 min-w-0">
-      <div className="flex items-center justify-between mb-2">
-        <h3 className="font-medium truncate">{project.name}</h3>
-        <span
-          className={`text-xs px-2.5 py-1 rounded-full ${
-            project.status === "Completed"
-              ? "bg-green-500/20 text-green-400"
-              : project.status === "Review"
-              ? "bg-yellow-500/20 text-yellow-400"
-              : "bg-blue-500/20 text-blue-400"
-          }`}
-        >
-          {project.status}
-        </span>
+// Project Card Component (uses DashboardProject from hook)
+import type { LiveActivity, DashboardProject } from "@/hooks/useLiveData";
+
+const ProjectCard: React.FC<{ project: DashboardProject; index: number }> = ({ project, index }) => {
+  const statusInfo = STATUS_DISPLAY[project.status] || STATUS_DISPLAY['in_progress'];
+  
+  return (
+    <motion.div
+      initial={{ opacity: 0, x: -20 }}
+      animate={{ opacity: 1, x: 0 }}
+      transition={{ duration: 0.3, delay: 0.5 + index * 0.1 }}
+      className="flex items-center gap-4 p-4 bg-white/5 rounded-xl hover:bg-white/[0.07] transition-colors cursor-pointer group"
+    >
+      <div className="p-3 bg-white/10 rounded-xl">
+        <FolderOpen className="w-5 h-5" />
       </div>
-      <div className="flex items-center gap-4">
-        <div className="flex-1">
-          <div className="h-1.5 bg-white/10 rounded-full overflow-hidden">
-            <div
-              className="h-full bg-white rounded-full transition-all"
-              style={{ width: `${project.progress}%` }}
-            />
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center justify-between mb-2">
+          <h3 className="font-medium truncate">{project.name}</h3>
+          <span className={`text-xs px-2.5 py-1 rounded-full ${statusInfo.color}`}>
+            {statusInfo.label}
+          </span>
+        </div>
+        <div className="flex items-center gap-4">
+          <div className="flex-1">
+            <div className="h-1.5 bg-white/10 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-white rounded-full transition-all"
+                style={{ width: `${project.progress}%` }}
+              />
+            </div>
+          </div>
+          <span className="text-xs text-white/50">{project.progress}%</span>
+          <div className="flex items-center gap-1 text-xs text-white/50">
+            <Users className="w-3.5 h-3.5" />
+            {project.team}
           </div>
         </div>
-        <span className="text-xs text-white/50">{project.progress}%</span>
-        <div className="flex items-center gap-1 text-xs text-white/50">
-          <Users className="w-3.5 h-3.5" />
-          {project.team}
-        </div>
       </div>
-    </div>
-    <ArrowUpRight className="w-4 h-4 text-white/30 group-hover:text-white transition-colors" />
-  </motion.div>
-);
+      <ArrowUpRight className="w-4 h-4 text-white/30 group-hover:text-white transition-colors" />
+    </motion.div>
+  );
+};
 
-// Live Activity Item Component (uses LiveActivity type from hook)
-import type { LiveActivity } from "@/hooks/useLiveData";
-
+// Live Activity Item Component
 const LiveActivityItem: React.FC<{ activity: LiveActivity; index: number }> = ({ activity, index }) => (
   <motion.div
     initial={{ opacity: 0, x: 20, scale: 0.95 }}
@@ -316,11 +282,13 @@ const Dashboard = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
 
-  // Live data hooks
+  // Live data hooks (connected to Supabase)
   const liveStats = useLiveStats(30000); // Update every 30 seconds
-  const liveActivities = useLiveActivity(8, 45000); // Max 8 items, new every 45 seconds
+  const liveActivities = useLiveActivity(8, 45000); // Max 8 items
   const toolStatus = useToolStatus();
   const currentTime = useCurrentTime();
+  const { projects: recentProjects, isLoading: projectsLoading } = useProjects(4);
+  const { tasksCount: tasksDueToday, isLoading: tasksLoading } = useTasksDueToday();
 
   // Get auth state with proper error handling
   const authState = useMemo(() => {
@@ -373,33 +341,36 @@ const Dashboard = () => {
   const formattedStats = useMemo(() => [
     {
       label: "Total Projects",
-      value: liveStats.totalProjects.toString(),
-      change: "+12%",
+      value: liveStats.isLoading ? "..." : liveStats.totalProjects.toString(),
+      change: liveStats.totalProjects > 0 ? "+12%" : "0%",
       trend: "up" as const,
       icon: FolderOpen,
     },
     {
       label: "Active Users",
-      value: liveStats.activeUsers.toLocaleString(),
-      change: "+8.2%",
+      value: liveStats.isLoading ? "..." : liveStats.activeUsers.toLocaleString(),
+      change: liveStats.activeUsers > 0 ? "+8.2%" : "0%",
       trend: "up" as const,
       icon: Users,
     },
     {
       label: "Revenue",
-      value: `€${(liveStats.revenue / 1000).toFixed(1)}K`,
-      change: "+23%",
+      value: liveStats.isLoading ? "..." : `€${(liveStats.revenue / 1000).toFixed(1)}K`,
+      change: liveStats.revenue > 0 ? "+23%" : "0%",
       trend: "up" as const,
       icon: TrendingUp,
     },
     {
       label: "Tasks Completed",
-      value: `${liveStats.tasksCompleted}%`,
-      change: liveStats.tasksCompleted > 85 ? "+2%" : "-2%",
+      value: liveStats.isLoading ? "..." : `${liveStats.tasksCompleted}%`,
+      change: liveStats.tasksCompleted > 85 ? "+2%" : liveStats.tasksCompleted > 0 ? "-2%" : "0%",
       trend: liveStats.tasksCompleted > 85 ? "up" as const : "down" as const,
       icon: CheckCircle2,
     },
   ], [liveStats]);
+
+  // Data error state
+  const hasDataError = liveStats.error !== null;
 
   // Online tools count
   const onlineToolsCount = useMemo(() => 
@@ -631,6 +602,30 @@ const Dashboard = () => {
             ))}
           </motion.div>
 
+          {/* Database Error Banner */}
+          {hasDataError && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="mb-6 bg-yellow-500/20 border border-yellow-500/30 rounded-xl p-4 flex items-start gap-3"
+            >
+              <AlertCircle className="w-5 h-5 text-yellow-400 flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="text-sm font-medium text-yellow-400">Database Not Connected</p>
+                <p className="text-xs text-yellow-400/70 mt-1">
+                  {liveStats.error}
+                </p>
+                <p className="text-xs text-white/50 mt-2">
+                  To connect your database, add the following to your <code className="bg-white/10 px-1 rounded">.env</code> file:
+                </p>
+                <pre className="text-xs bg-black/30 rounded p-2 mt-2 overflow-x-auto">
+{`VITE_SUPABASE_URL=your_supabase_url
+VITE_SUPABASE_ANON_KEY=your_supabase_anon_key`}
+                </pre>
+              </div>
+            </motion.div>
+          )}
+
           {/* Live Stats Grid */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -697,9 +692,21 @@ const Dashboard = () => {
                 </button>
               </div>
               <div className="space-y-4">
-                {recentProjects.map((project, index) => (
-                  <ProjectCard key={project.name} project={project} index={index} />
-                ))}
+                {projectsLoading ? (
+                  <div className="flex items-center justify-center py-8">
+                    <Loader2 className="w-6 h-6 animate-spin text-white/40" />
+                  </div>
+                ) : recentProjects.length === 0 ? (
+                  <div className="text-center py-8">
+                    <FolderOpen className="w-12 h-12 text-white/20 mx-auto mb-3" />
+                    <p className="text-white/40 text-sm">No projects yet</p>
+                    <p className="text-white/30 text-xs mt-1">Create your first project to get started</p>
+                  </div>
+                ) : (
+                  recentProjects.map((project, index) => (
+                    <ProjectCard key={project.id} project={project} index={index} />
+                  ))
+                )}
               </div>
             </motion.section>
 
@@ -714,22 +721,32 @@ const Dashboard = () => {
               <div className="flex items-center justify-between mb-6">
                 <div className="flex items-center gap-2">
                   <h2 id="activity-heading" className="text-xl font-semibold">Live Activity</h2>
-                  <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+                  {liveActivities.length > 0 && (
+                    <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+                  )}
                 </div>
                 <button className="text-sm text-white/60 hover:text-white transition-colors">
                   See all
                 </button>
               </div>
               <div className="space-y-4">
-                <AnimatePresence mode="popLayout">
-                  {liveActivities.map((activity, index) => (
-                    <LiveActivityItem 
-                      key={activity.id} 
-                      activity={activity} 
-                      index={index} 
-                    />
-                  ))}
-                </AnimatePresence>
+                {liveActivities.length === 0 ? (
+                  <div className="text-center py-8">
+                    <Activity className="w-12 h-12 text-white/20 mx-auto mb-3" />
+                    <p className="text-white/40 text-sm">No recent activity</p>
+                    <p className="text-white/30 text-xs mt-1">Activity will appear here as you work</p>
+                  </div>
+                ) : (
+                  <AnimatePresence mode="popLayout">
+                    {liveActivities.map((activity, index) => (
+                      <LiveActivityItem 
+                        key={activity.id} 
+                        activity={activity} 
+                        index={index} 
+                      />
+                    ))}
+                  </AnimatePresence>
+                )}
               </div>
               <div className="mt-4 pt-4 border-t border-white/10">
                 <p className="text-xs text-white/40 text-center">
@@ -740,37 +757,39 @@ const Dashboard = () => {
           </div>
 
           {/* Upcoming Tasks */}
-          <motion.section
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.7 }}
-            className="mt-6 bg-gradient-to-r from-purple-500/20 to-blue-500/20 border border-white/10 rounded-2xl p-6"
-            aria-labelledby="tasks-heading"
-          >
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-              <div className="flex items-start gap-4">
-                <div className="p-3 bg-white/10 rounded-xl">
-                  <AlertCircle className="w-6 h-6" aria-hidden="true" />
+          {!tasksLoading && tasksDueToday > 0 && (
+            <motion.section
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: 0.7 }}
+              className="mt-6 bg-gradient-to-r from-purple-500/20 to-blue-500/20 border border-white/10 rounded-2xl p-6"
+              aria-labelledby="tasks-heading"
+            >
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div className="flex items-start gap-4">
+                  <div className="p-3 bg-white/10 rounded-xl">
+                    <AlertCircle className="w-6 h-6" aria-hidden="true" />
+                  </div>
+                  <div>
+                    <h3 id="tasks-heading" className="text-lg font-semibold mb-1">
+                      {tasksDueToday} task{tasksDueToday !== 1 ? 's' : ''} due today
+                    </h3>
+                    <p className="text-white/60 text-sm">
+                      You have pending tasks that need your attention. Review and
+                      complete them to stay on track.
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <h3 id="tasks-heading" className="text-lg font-semibold mb-1">
-                    5 tasks due today
-                  </h3>
-                  <p className="text-white/60 text-sm">
-                    You have pending tasks that need your attention. Review and
-                    complete them to stay on track.
-                  </p>
-                </div>
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  className="bg-white text-black px-6 py-3 rounded-xl font-medium text-sm whitespace-nowrap"
+                >
+                  View Tasks
+                </motion.button>
               </div>
-              <motion.button
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                className="bg-white text-black px-6 py-3 rounded-xl font-medium text-sm whitespace-nowrap"
-              >
-                View Tasks
-              </motion.button>
-            </div>
-          </motion.section>
+            </motion.section>
+          )}
         </main>
       </div>
     </div>

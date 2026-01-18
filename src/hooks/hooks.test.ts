@@ -76,10 +76,11 @@ describe('Custom Hooks', () => {
       }
     });
 
-    it('should initialize with some activities', () => {
+    it('should initialize with empty activities when Supabase not configured', () => {
       const { result } = renderHook(() => useLiveActivity());
       
-      expect(result.current.length).toBeGreaterThan(0);
+      // When Supabase is not configured, activities start empty
+      expect(result.current).toEqual([]);
     });
   });
 

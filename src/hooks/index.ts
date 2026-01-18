@@ -10,9 +10,11 @@ export {
   useLiveActivity,
   useToolStatus,
   useCurrentTime,
+  useProjects,
+  useTasksDueToday,
   formatRelativeTime,
 } from './useLiveData';
-export type { LiveStats, LiveActivity, ToolStatus } from './useLiveData';
+export type { LiveStats, LiveActivity, ToolStatus, DashboardProject } from './useLiveData';
 
 // Notification hooks
 export {
