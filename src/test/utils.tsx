@@ -7,6 +7,7 @@
 import React, { ReactElement } from 'react';
 import { render, RenderOptions, RenderResult } from '@testing-library/react';
 import { BrowserRouter } from 'react-router-dom';
+import { vi } from 'vitest';
 
 /**
  * All providers wrapper for testing
@@ -88,6 +89,3 @@ export function createMockResponse<T>(data: T, status: number = 200) {
     text: () => Promise.resolve(JSON.stringify(data)),
   };
 }
-
-// Import vi for the createMockFn function
-import { vi } from 'vitest';
