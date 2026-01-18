@@ -33,6 +33,7 @@ interface SecureIframeProps {
   allowClipboard?: boolean;
   onLoad?: () => void;
   onError?: (error: Error) => void;
+  onStatusChange?: (status: 'loading' | 'connected' | 'error') => void;
   validateOrigin?: boolean;
   showLoadingState?: boolean;
 }
@@ -104,6 +105,7 @@ export const SecureIframe: React.FC<SecureIframeProps> = ({
   allowClipboard = true,
   onLoad,
   onError,
+  onStatusChange,
   validateOrigin = true,
   showLoadingState = true,
 }) => {
@@ -111,6 +113,17 @@ export const SecureIframe: React.FC<SecureIframeProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [key, setKey] = useState(0); // For retry functionality
   const iframeRef = useRef<HTMLIFrameElement>(null);
+
+  // Notify status changes
+  useEffect(() => {
+    if (error) {
+      onStatusChange?.('error');
+    } else if (isLoading) {
+      onStatusChange?.('loading');
+    } else {
+      onStatusChange?.('connected');
+    }
+  }, [isLoading, error, onStatusChange]);
 
   // Validate origin on mount
   useEffect(() => {

@@ -1,9 +1,16 @@
 import { useState, useCallback, useMemo } from "react";
-import { motion } from "framer-motion";
-import { Link } from "react-router-dom";
+import { motion, AnimatePresence } from "framer-motion";
+import { Link, useNavigate } from "react-router-dom";
 import { useAuth, useUser, SignOutButton, UserButton } from "@clerk/clerk-react";
 import { isAuthConfigured } from "@/lib/env";
 import { authLogger } from "@/lib/logger";
+import { 
+  useLiveStats, 
+  useLiveActivity, 
+  useToolStatus, 
+  useCurrentTime,
+  formatRelativeTime 
+} from "@/hooks/useLiveData";
 import {
   LayoutDashboard,
   FolderOpen,
@@ -28,7 +35,35 @@ import {
   Palette,
   FileText,
   Bot,
+  Activity,
+  Wifi,
+  WifiOff,
+  ExternalLink,
+  RefreshCw,
+  MessageSquare,
+  PenTool,
+  Layers,
 } from "lucide-react";
+
+// Tool icon mapping
+const TOOL_ICONS: Record<string, React.ElementType> = {
+  'code-editor': Code,
+  'app-builder': Layers,
+  'agent-ai': Bot,
+  'aurion-chat': MessageSquare,
+  'intelligent-canvas': PenTool,
+  'text-editor': FileText,
+};
+
+// Tool route mapping
+const TOOL_ROUTES: Record<string, string> = {
+  'code-editor': '/code-editor',
+  'app-builder': '/app-builder',
+  'agent-ai': '/agent-ai',
+  'aurion-chat': '/aurion-chat',
+  'intelligent-canvas': '/intelligent-canvas',
+  'text-editor': '/text-editor',
+};
 
 // Types
 interface SidebarItem {
@@ -36,14 +71,6 @@ interface SidebarItem {
   label: string;
   href: string;
   active?: boolean;
-}
-
-interface StatData {
-  label: string;
-  value: string;
-  change: string;
-  trend: 'up' | 'down';
-  icon: React.ElementType;
 }
 
 interface Project {
@@ -54,17 +81,11 @@ interface Project {
   icon: React.ElementType;
 }
 
-interface Activity {
-  user: string;
-  action: string;
-  target: string;
-  time: string;
-}
-
 interface QuickAction {
   icon: React.ElementType;
   label: string;
   color: string;
+  href?: string;
 }
 
 // Sidebar Navigation Items
@@ -76,39 +97,7 @@ const sidebarItems: SidebarItem[] = [
   { icon: Settings, label: "Settings", href: "/dashboard/settings" },
 ];
 
-// Stats Data
-const statsData: StatData[] = [
-  {
-    label: "Total Projects",
-    value: "24",
-    change: "+12%",
-    trend: "up",
-    icon: FolderOpen,
-  },
-  {
-    label: "Active Users",
-    value: "1,429",
-    change: "+8.2%",
-    trend: "up",
-    icon: Users,
-  },
-  {
-    label: "Revenue",
-    value: "€48.2K",
-    change: "+23%",
-    trend: "up",
-    icon: TrendingUp,
-  },
-  {
-    label: "Tasks Completed",
-    value: "89%",
-    change: "-2%",
-    trend: "down",
-    icon: CheckCircle2,
-  },
-];
-
-// Recent Projects
+// Recent Projects (static for now, could be from API)
 const recentProjects: Project[] = [
   {
     name: "E-commerce Platform",
@@ -140,68 +129,66 @@ const recentProjects: Project[] = [
   },
 ];
 
-// Recent Activity
-const recentActivity: Activity[] = [
-  {
-    user: "Marie L.",
-    action: "completed task",
-    target: "Homepage Design",
-    time: "2 min ago",
-  },
-  {
-    user: "Thomas R.",
-    action: "commented on",
-    target: "API Integration",
-    time: "15 min ago",
-  },
-  {
-    user: "Sophie M.",
-    action: "uploaded file to",
-    target: "Brand Assets",
-    time: "1 hour ago",
-  },
-  {
-    user: "Lucas P.",
-    action: "created project",
-    target: "Mobile App v2",
-    time: "3 hours ago",
-  },
-];
-
-// Quick Actions
+// Quick Actions with routes
 const quickActions: QuickAction[] = [
   { icon: Plus, label: "New Project", color: "bg-white text-black" },
-  { icon: Users, label: "Invite Team", color: "bg-white/10 text-white" },
-  { icon: Zap, label: "Quick Task", color: "bg-white/10 text-white" },
+  { icon: Code, label: "Code Editor", color: "bg-white/10 text-white", href: "/code-editor" },
+  { icon: Bot, label: "AI Assistant", color: "bg-white/10 text-white", href: "/agent-ai" },
 ];
 
-// Stat Card Component
-const StatCard: React.FC<{ stat: StatData; index: number }> = ({ stat, index }) => (
+// Live Stat Card Component
+interface LiveStatCardProps {
+  label: string;
+  value: string;
+  change: string;
+  trend: 'up' | 'down';
+  icon: React.ElementType;
+  index: number;
+  isLive?: boolean;
+}
+
+const LiveStatCard: React.FC<LiveStatCardProps> = ({ label, value, change, trend, icon: Icon, index, isLive }) => (
   <motion.div
     initial={{ opacity: 0, y: 20 }}
     animate={{ opacity: 1, y: 0 }}
     transition={{ duration: 0.5, delay: 0.2 + index * 0.1 }}
-    className="bg-white/5 border border-white/10 rounded-2xl p-6 hover:bg-white/[0.07] transition-colors"
+    className="bg-white/5 border border-white/10 rounded-2xl p-6 hover:bg-white/[0.07] transition-colors relative overflow-hidden"
   >
+    {isLive && (
+      <div className="absolute top-3 right-3 flex items-center gap-1.5">
+        <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+        <span className="text-[10px] text-green-400 uppercase font-medium">Live</span>
+      </div>
+    )}
     <div className="flex items-start justify-between mb-4">
       <div className="p-2.5 bg-white/10 rounded-xl">
-        <stat.icon className="w-5 h-5" />
+        <Icon className="w-5 h-5" />
       </div>
       <div
         className={`flex items-center gap-1 text-sm ${
-          stat.trend === "up" ? "text-green-400" : "text-red-400"
+          trend === "up" ? "text-green-400" : "text-red-400"
         }`}
       >
-        {stat.trend === "up" ? (
+        {trend === "up" ? (
           <TrendingUp className="w-4 h-4" />
         ) : (
           <TrendingDown className="w-4 h-4" />
         )}
-        {stat.change}
+        {change}
       </div>
     </div>
-    <p className="text-2xl md:text-3xl font-bold mb-1">{stat.value}</p>
-    <p className="text-white/50 text-sm">{stat.label}</p>
+    <AnimatePresence mode="wait">
+      <motion.p 
+        key={value}
+        initial={{ opacity: 0, y: -10 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: 10 }}
+        className="text-2xl md:text-3xl font-bold mb-1"
+      >
+        {value}
+      </motion.p>
+    </AnimatePresence>
+    <p className="text-white/50 text-sm">{label}</p>
   </motion.div>
 );
 
@@ -251,13 +238,16 @@ const ProjectCard: React.FC<{ project: Project; index: number }> = ({ project, i
   </motion.div>
 );
 
-// Activity Item Component
-const ActivityItem: React.FC<{ activity: Activity; index: number }> = ({ activity, index }) => (
+// Live Activity Item Component (uses LiveActivity type from hook)
+import type { LiveActivity } from "@/hooks/useLiveData";
+
+const LiveActivityItem: React.FC<{ activity: LiveActivity; index: number }> = ({ activity, index }) => (
   <motion.div
-    initial={{ opacity: 0, x: 20 }}
-    animate={{ opacity: 1, x: 0 }}
-    transition={{ duration: 0.3, delay: 0.6 + index * 0.1 }}
+    initial={{ opacity: 0, x: 20, scale: 0.95 }}
+    animate={{ opacity: 1, x: 0, scale: 1 }}
+    transition={{ duration: 0.3, delay: index * 0.05 }}
     className="flex items-start gap-3"
+    layout
   >
     <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center text-xs font-medium flex-shrink-0">
       {activity.user.charAt(0)}
@@ -270,15 +260,67 @@ const ActivityItem: React.FC<{ activity: Activity; index: number }> = ({ activit
       </p>
       <p className="text-xs text-white/40 mt-0.5 flex items-center gap-1">
         <Clock className="w-3 h-3" />
-        {activity.time}
+        {formatRelativeTime(activity.timestamp)}
       </p>
     </div>
   </motion.div>
 );
 
+// Tool Status Card Component
+import type { ToolStatus } from "@/hooks/useLiveData";
+
+const ToolStatusCard: React.FC<{ tool: ToolStatus; onClick: () => void }> = ({ tool, onClick }) => {
+  const Icon = TOOL_ICONS[tool.id] || Code;
+  
+  return (
+    <motion.button
+      onClick={onClick}
+      whileHover={{ scale: 1.02 }}
+      whileTap={{ scale: 0.98 }}
+      className="flex items-center gap-3 p-3 bg-white/5 border border-white/10 rounded-xl hover:bg-white/[0.08] transition-colors w-full text-left"
+    >
+      <div className={`p-2 rounded-lg ${
+        tool.status === 'online' ? 'bg-green-500/20' : 
+        tool.status === 'offline' ? 'bg-red-500/20' : 'bg-white/10'
+      }`}>
+        <Icon className="w-4 h-4" />
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-medium truncate">{tool.name}</p>
+        <div className="flex items-center gap-1.5">
+          {tool.status === 'online' ? (
+            <>
+              <Wifi className="w-3 h-3 text-green-400" />
+              <span className="text-xs text-green-400">Online</span>
+            </>
+          ) : tool.status === 'offline' ? (
+            <>
+              <WifiOff className="w-3 h-3 text-red-400" />
+              <span className="text-xs text-red-400">Offline</span>
+            </>
+          ) : (
+            <>
+              <RefreshCw className="w-3 h-3 text-white/40 animate-spin" />
+              <span className="text-xs text-white/40">Checking...</span>
+            </>
+          )}
+        </div>
+      </div>
+      <ExternalLink className="w-4 h-4 text-white/30" />
+    </motion.button>
+  );
+};
+
 const Dashboard = () => {
+  const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+
+  // Live data hooks
+  const liveStats = useLiveStats(30000); // Update every 30 seconds
+  const liveActivities = useLiveActivity(8, 45000); // Max 8 items, new every 45 seconds
+  const toolStatus = useToolStatus();
+  const currentTime = useCurrentTime();
 
   // Get auth state with proper error handling
   const authState = useMemo(() => {
@@ -319,6 +361,50 @@ const Dashboard = () => {
   const handleSearchChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     setSearchQuery(e.target.value);
   }, []);
+
+  const handleToolClick = useCallback((toolId: string) => {
+    const route = TOOL_ROUTES[toolId];
+    if (route) {
+      navigate(route);
+    }
+  }, [navigate]);
+
+  // Format stats for display
+  const formattedStats = useMemo(() => [
+    {
+      label: "Total Projects",
+      value: liveStats.totalProjects.toString(),
+      change: "+12%",
+      trend: "up" as const,
+      icon: FolderOpen,
+    },
+    {
+      label: "Active Users",
+      value: liveStats.activeUsers.toLocaleString(),
+      change: "+8.2%",
+      trend: "up" as const,
+      icon: Users,
+    },
+    {
+      label: "Revenue",
+      value: `€${(liveStats.revenue / 1000).toFixed(1)}K`,
+      change: "+23%",
+      trend: "up" as const,
+      icon: TrendingUp,
+    },
+    {
+      label: "Tasks Completed",
+      value: `${liveStats.tasksCompleted}%`,
+      change: liveStats.tasksCompleted > 85 ? "+2%" : "-2%",
+      trend: liveStats.tasksCompleted > 85 ? "up" as const : "down" as const,
+      icon: CheckCircle2,
+    },
+  ], [liveStats]);
+
+  // Online tools count
+  const onlineToolsCount = useMemo(() => 
+    toolStatus.filter(t => t.status === 'online').length,
+  [toolStatus]);
 
   // Show loading state
   if (!isLoaded) {
@@ -485,19 +571,31 @@ const Dashboard = () => {
 
         {/* Page Content */}
         <main className="p-4 md:p-8">
-          {/* Welcome Section */}
+          {/* Welcome Section with Live Time */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5 }}
             className="mb-8"
           >
-            <h1 className="text-3xl md:text-4xl font-display font-bold mb-2">
-              Welcome back, {userName} 👋
-            </h1>
-            <p className="text-white/60">
-              Here's what's happening with your projects today.
-            </p>
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+              <div>
+                <h1 className="text-3xl md:text-4xl font-display font-bold mb-2">
+                  Welcome back, {userName} 👋
+                </h1>
+                <p className="text-white/60">
+                  Here's what's happening with your projects today.
+                </p>
+              </div>
+              <div className="flex items-center gap-3 bg-white/5 border border-white/10 rounded-xl px-4 py-2">
+                <Activity className="w-4 h-4 text-green-400" />
+                <span className="text-sm text-white/60">
+                  {currentTime.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+                </span>
+                <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
+                <span className="text-xs text-green-400">Live</span>
+              </div>
+            </div>
           </motion.div>
 
           {/* Quick Actions */}
@@ -508,29 +606,78 @@ const Dashboard = () => {
             className="flex flex-wrap gap-3 mb-8"
           >
             {quickActions.map((action) => (
-              <motion.button
-                key={action.label}
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-medium text-sm ${action.color} transition-colors`}
-              >
-                <action.icon className="w-4 h-4" aria-hidden="true" />
-                {action.label}
-              </motion.button>
+              action.href ? (
+                <Link key={action.label} to={action.href}>
+                  <motion.span
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-medium text-sm ${action.color} transition-colors`}
+                  >
+                    <action.icon className="w-4 h-4" aria-hidden="true" />
+                    {action.label}
+                  </motion.span>
+                </Link>
+              ) : (
+                <motion.button
+                  key={action.label}
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-medium text-sm ${action.color} transition-colors`}
+                >
+                  <action.icon className="w-4 h-4" aria-hidden="true" />
+                  {action.label}
+                </motion.button>
+              )
             ))}
           </motion.div>
 
-          {/* Stats Grid */}
+          {/* Live Stats Grid */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.2 }}
             className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8"
           >
-            {statsData.map((stat, index) => (
-              <StatCard key={stat.label} stat={stat} index={index} />
+            {formattedStats.map((stat, index) => (
+              <LiveStatCard 
+                key={stat.label} 
+                {...stat} 
+                index={index}
+                isLive={true}
+              />
             ))}
           </motion.div>
+
+          {/* Tools Status Section */}
+          <motion.section
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.3 }}
+            className="mb-8 bg-white/5 border border-white/10 rounded-2xl p-6"
+            aria-labelledby="tools-heading"
+          >
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <h2 id="tools-heading" className="text-xl font-semibold">Connected Tools</h2>
+                <span className="px-2 py-0.5 bg-green-500/20 text-green-400 text-xs rounded-full">
+                  {onlineToolsCount}/{toolStatus.length} online
+                </span>
+              </div>
+              <button className="flex items-center gap-1 text-sm text-white/60 hover:text-white transition-colors">
+                <RefreshCw className="w-3.5 h-3.5" />
+                Refresh
+              </button>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {toolStatus.map((tool) => (
+                <ToolStatusCard 
+                  key={tool.id} 
+                  tool={tool} 
+                  onClick={() => handleToolClick(tool.id)}
+                />
+              ))}
+            </div>
+          </motion.section>
 
           {/* Main Grid */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -556,7 +703,7 @@ const Dashboard = () => {
               </div>
             </motion.section>
 
-            {/* Recent Activity */}
+            {/* Live Activity Feed */}
             <motion.section
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
@@ -565,15 +712,29 @@ const Dashboard = () => {
               aria-labelledby="activity-heading"
             >
               <div className="flex items-center justify-between mb-6">
-                <h2 id="activity-heading" className="text-xl font-semibold">Activity</h2>
+                <div className="flex items-center gap-2">
+                  <h2 id="activity-heading" className="text-xl font-semibold">Live Activity</h2>
+                  <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+                </div>
                 <button className="text-sm text-white/60 hover:text-white transition-colors">
                   See all
                 </button>
               </div>
               <div className="space-y-4">
-                {recentActivity.map((activity, index) => (
-                  <ActivityItem key={`activity-${index}`} activity={activity} index={index} />
-                ))}
+                <AnimatePresence mode="popLayout">
+                  {liveActivities.map((activity, index) => (
+                    <LiveActivityItem 
+                      key={activity.id} 
+                      activity={activity} 
+                      index={index} 
+                    />
+                  ))}
+                </AnimatePresence>
+              </div>
+              <div className="mt-4 pt-4 border-t border-white/10">
+                <p className="text-xs text-white/40 text-center">
+                  Last updated: {formatRelativeTime(liveStats.lastUpdated)}
+                </p>
               </div>
             </motion.section>
           </div>

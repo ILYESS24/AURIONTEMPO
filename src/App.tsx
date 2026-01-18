@@ -3,7 +3,7 @@ import { Routes, Route } from "react-router-dom";
 import { ClerkProvider } from "@clerk/clerk-react";
 import { ErrorBoundary } from "@/components/common";
 import { ProtectedRoute } from "@/components/auth";
-import { getClerkPublishableKey, validateEnv, logEnvInfo } from "@/lib/env";
+import { getClerkPublishableKey, validateEnv, logEnvInfo, getEnvConfig } from "@/lib/env";
 import { logger, securityLogger } from "@/lib/logger";
 
 // Eager load critical components
