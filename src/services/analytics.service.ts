@@ -27,6 +27,7 @@ interface UserProperties {
   email?: string;
   name?: string;
   plan?: string;
+  [key: string]: string | undefined;
 }
 
 // =============================================================================
